@@ -2,9 +2,9 @@
    "version": "2.0.0",
     "tasks": [
         {
-            "label": "clang",
+            "label": "make",
             "type": "shell",
-            "command": "clang -o physics physics.c -lraylib -lm && ./physics",
+            "command": "make && ./physics && make clean",
             "problemMatcher": [],
             "group": {
                 "kind": "build",

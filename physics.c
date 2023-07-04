@@ -4,7 +4,7 @@
 #include <time.h>
 #include <raylib.h>
 
-typedef struct { // Object struct
+typedef struct {
     Vector2 center;
     Vector2 velocity;
     int radius;
@@ -13,52 +13,78 @@ typedef struct { // Object struct
 
 const int maxRadius = 20;
 const int minRadius = 2;
-
 const int screenWidth = 800;
 const int screenHeight = 600;
-
-static int collectionSize = 1;
-static int index = 0;
-
-Object *objCol; // Collection of created objects
+float deltaTime;
+int collectionSize = 1;
+int item = 0;
+Vector2 gravity = { 0.0f, 300.0f };
+Object *objCol;
 
 Object *createObject();
 float distance(Vector2 obj1, Vector2 obj2);
-
 void resolveOutOfBounds();
+void resolveBoundCollision();
 void resolveCollision();
 void resolveMovement();
 void update();
 
-// Object constructor
 Object *createObject() {
     int randomRadius = (rand() % (maxRadius - minRadius + 1)) + minRadius;
-    printf("Random radius %d\n", randomRadius);
     Object *object = malloc(sizeof(Object));
-    object->center = GetMousePosition(); // Inital position/center is always the current mouse position
-    object->velocity.x = 3.0f; // Move speed
-    object->velocity.y = 2.0f; // Move speed
+    object->center = GetMousePosition();
+    object->velocity.x = 15.0f;
+    object->velocity.y = 0.0f;
     object->radius = randomRadius;
     object->used = true;
     return object;
 }
 
-// Distance calculator
 float distance(Vector2 obj1, Vector2 obj2) {
     return sqrtf(powf(obj2.x - obj1.x, 2.0f) + powf(obj2.y - obj1.y, 2.0f));
 }
 
 void resolveOutOfBounds() {
-    for (int i = 0; i < collectionSize - 1; i++) { // Disable drawing object if it is off screen
+    for (int i = 0; i < collectionSize - 1; i++) {
         if (objCol[i].used && 
-        objCol[i].center.x - objCol[i].radius > screenWidth || 
+        (objCol[i].center.x - objCol[i].radius > screenWidth || 
         objCol[i].center.x + objCol[i].radius < 0 || 
         objCol[i].center.y - objCol[i].radius > screenHeight || 
-        objCol[i].center.y + objCol[i].radius < 0) { // Set object use to false and set coordinates constant val
+        objCol[i].center.y + objCol[i].radius < 0)) {
             objCol[i].used = false;
+            #ifdef DEBUG
             printf("Obj %d out of bounds\n", i);
+            #endif
             objCol[i].center.x = 0;
             objCol[i].center.y = 0;
+        }
+    }
+}
+
+void resolveBoundCollision() {
+    for (int i = 0; i < collectionSize - 1; i++) {
+        if (objCol[i].used) {
+            if (objCol[i].center.y + objCol[i].radius >= screenHeight) {
+                // objCol[i].center.y = screenHeight - objCol[i].radius;
+                objCol[i].velocity.y -= 100;
+                #ifdef DEBUG
+                printf("Obj %d collided with the bottom bound\n", i);
+                #endif
+            }
+
+            if (objCol[i].center.x + objCol[i].radius >= screenWidth) {
+                objCol[i].velocity.x -= 100;
+                #ifdef DEBUG
+                printf("Obj %d collided with the right bounds\n", i);
+                #endif
+            }
+
+            if (objCol[i].center.x - objCol[i].radius <= 0) {
+                objCol[i].velocity.x += 100;
+                #ifdef DEBUG
+                printf("Obj %d collided with the left bounds\n", i);
+                #endif
+            }
         }
     }
 }
@@ -69,15 +95,22 @@ void resolveCollision() {
 
 void resolveMovement() {
     for (int i = 0; i < collectionSize - 1; i++) {
-        if (objCol[i].used) { // If the Objects are being used, move them
-            objCol[i].center.x += objCol[i].velocity.x;
-            objCol[i].center.y += objCol[i].velocity.y;
+        if (objCol[i].used) {
+            objCol[i].center.x += objCol[i].velocity.x * deltaTime;
+            objCol[i].center.y += objCol[i].velocity.y * deltaTime;
+
+            // reduce velocity with gravity velocity
+            if (objCol[i].center.y + objCol[i].radius < screenHeight - objCol[i].radius) {
+            objCol[i].velocity.x += gravity.x * deltaTime;
+            objCol[i].velocity.y += gravity.y * deltaTime;
+            }
         }
     }
 }
 
 void update() {
-    resolveOutOfBounds();
+    // resolveOutOfBounds();
+    resolveBoundCollision();
     resolveMovement();
     resolveCollision();
 }
@@ -90,34 +123,27 @@ int main(void) {
     
     SetTargetFPS(60);
     while (!WindowShouldClose()) {
+        deltaTime = GetFrameTime();
 
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         // if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
-            objCol[index] = *createObject();
-            printf("Obj %d x%f, y%f\n", index, objCol[index].center.x, objCol[index].center.y);
+            objCol[item] = *createObject();
+            #ifdef DEBUG
+            printf("Obj %d x%f, y%f\n", item, objCol[item].center.x, objCol[item].center.y);
+            #endif
 
-            index++;
+            item++;
             collectionSize++;
 
-            // Reallocate collection size safely
             Object *newObj;
             newObj = realloc(objCol, sizeof(Object) * collectionSize);
+            #ifdef DEBUG
             if (newObj == NULL) {
                 printf("Failed to reallocate memory\n");
             }
+            #endif
             objCol = newObj;
         }
-
-        // Detect collision
-        // for (int i = 0; i < bufferSize - 1; i++) {
-        //     for (int j = 0; j < bufferSize - 2; j++) {
-        //         if (i != j) {
-        //             if (distance(objCol[j].center, objCol[i].center) < globalRadius * 2) {
-        //                 // Move the objects back a certain ammount
-        //             }
-        //         }
-        //     } 
-        // }
 
         update();
 
@@ -125,7 +151,6 @@ int main(void) {
 
         ClearBackground(BLACK);
 
-        // Draw all of the objects in collection
         for (int i = 0; i < collectionSize - 1; i++) {
             if (objCol[i].used) {
                 DrawCircleV(objCol[i].center, objCol[i].radius, WHITE);
@@ -135,9 +160,10 @@ int main(void) {
         EndDrawing();
     }
 
-    // Free allocated object collection
     free(objCol);
+    #ifdef DEBUG
     printf("Object collection size: %d, freed\n", collectionSize);
+    #endif
 
     CloseWindow();
     return 0;
